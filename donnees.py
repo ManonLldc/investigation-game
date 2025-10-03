@@ -63,7 +63,7 @@ suspects = {
 }
 
 # --- Coupable ---
-COUPABLE = "Ophélia"
+COUPABLE = "Ophelia"
 
 # --- Enquête (étapes du jeu) ---
 enquete = {

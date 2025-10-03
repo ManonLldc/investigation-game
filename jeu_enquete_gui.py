@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 from ui import creer_fenetre, creer_style
-from donnees import suspects, COUPABLE, enquete
+from donnees import suspects, enquete
 import jeu_enquete_logic as logic
 
 # --- Création fenêtre et style ---
@@ -43,8 +43,7 @@ def afficher_dossier_indices():
         text_widget.configure(state="normal")
         text_widget.delete("1.0", "end")
         if logic.indices_trouves:
-            lignes = [f"{nom} : {indice}" for nom, data in suspects.items()
-                      for indice in data["indice"] if indice in logic.indices_trouves]
+            lignes = [f"{nom} : {indice}" for nom, data in suspects.items() for indice in data["indice"] if indice in logic.indices_trouves]
             text_widget.insert("1.0", "\n".join(lignes))
         else:
             text_widget.insert("1.0", "Aucun indice découvert.")
@@ -60,8 +59,7 @@ def afficher_dossier_indices():
 
     text_widget = tk.Text(frame, wrap="word", font=("Consolas", 12))
     if logic.indices_trouves:
-        lignes = [f"{nom} : {indice}" for nom, data in suspects.items()
-                  for indice in data["indice"] if indice in logic.indices_trouves]
+        lignes = [f"{nom} : {indice}" for nom, data in suspects.items() for indice in data["indice"] if indice in logic.indices_trouves]
         text_widget.insert("1.0", "\n".join(lignes))
     else:
         text_widget.insert("1.0", "Aucun indice découvert.")
@@ -75,12 +73,46 @@ def afficher_dossier_indices():
     btn_fermer = ttk.Button(dossier_indices_win, text="⬅️ Revenir à l'entrée", command=dossier_indices_win.destroy)
     btn_fermer.pack(pady=5)
 
+# --- Accusation finale ---
+def accuser():
+    boutons = []
+    for nom in suspects.keys():
+        boutons.append((nom, lambda n=nom: afficher_resultat_accusation(n)))  # capture n=nom
+    boutons.append(("⬅️ Revenir en arrière", lambda: afficher_etape("debut")))
+    boutons.append(("📜 Consulter mes indices", afficher_dossier_indices))
+    texte.set(f"Qui accusez-vous ?\nScore actuel : {logic.score}")
+    afficher_boutons(boutons)
+
+
+def afficher_resultat_accusation(nom):
+    coupable, message = logic.verifier_accusation(nom)
+    texte.set(message)
+    afficher_boutons([
+        ("🔄 Recommencer le jeu", relancer_jeu),
+        ("📜 Consulter mes indices", afficher_dossier_indices)
+    ])
+
+# --- Fonction pour recommencer le jeu ---
+def relancer_jeu():
+    logic.recommencer_jeu()
+    afficher_intro()
+
+# --- Introduction ---
+def afficher_intro():
+    texte.set(enquete["debut"]["texte"])
+    boutons = []
+    for choix, destination in enquete["debut"]["choix"].items():
+        if "interroger_" in destination:
+            dest_command = lambda n=destination.replace("interroger_", ""): interroger_suspect(n)
+        else:
+            dest_command = lambda dest=destination: afficher_etape(dest)
+        boutons.append((choix, dest_command))
+    boutons.append(("📜 Consulter mes indices", afficher_dossier_indices))
+    afficher_boutons(boutons)
+
 # --- Étapes du jeu ---
 def afficher_etape(etape):
-    if etape == "dossier_suspects":
-        afficher_dossier_suspects()
-        return
-    elif etape == "accuser":
+    if etape == "accuser":
         accuser()
         return
     texte.set(enquete[etape]["texte"])
@@ -96,12 +128,13 @@ def afficher_etape(etape):
 
 # --- Interrogatoire ---
 def interroger_suspect(nom):
-    logic.ajouter_indices(nom)
     questions = logic.obtenir_questions(nom)
+    logic.ajouter_indices(nom)
+    
 
-    def afficher_question(q, reponse):
-        analyse = "Nerveux" if "étrange" in reponse or "suspicious" in reponse else "Calme et cohérent"
-        texte.set(f"{nom} : {reponse}\n\nAnalyse comportementale : {analyse}\n\n📜 Indices collectés : {len(logic.indices_trouves)}")
+    def afficher_question(q, r):
+        analyse = "Nerveux" if "étrange" in r or "suspicious" in r else "Calme et cohérent"
+        texte.set(f"{nom} : {r}\n\nAnalyse comportementale : {analyse}\n\n📜 Indices collectés : {len(logic.indices_trouves)}")
         boutons = [(ques, lambda ques=ques, resp=resp: afficher_question(ques, resp)) for ques, resp in questions.items()]
         boutons.append(("✅ Terminer l'interrogatoire", lambda: afficher_etape("debut")))
         boutons.append(("📜 Consulter mes indices", afficher_dossier_indices))
@@ -110,39 +143,6 @@ def interroger_suspect(nom):
     boutons_initiaux = [(q, lambda q=q, r=r: afficher_question(q, r)) for q, r in questions.items()]
     boutons_initiaux.append(("📜 Consulter mes indices", afficher_dossier_indices))
     afficher_boutons(boutons_initiaux)
-
-# --- Accusation finale ---
-def accuser():
-    boutons = [(nom, lambda n=nom: afficher_resultat_accusation(n)) for nom in suspects.keys()]
-    boutons.append(("⬅️ Revenir en arrière", lambda: afficher_etape("debut")))
-    boutons.append(("📜 Consulter mes indices", afficher_dossier_indices))
-    texte.set(f"Qui accusez-vous ?\nScore actuel : {logic.score}")
-    afficher_boutons(boutons)
-
-def afficher_resultat_accusation(nom):
-    coupable, message = logic.verifier_accusation(nom)
-    texte.set(message)
-    boutons = [("🔄 Recommencer le jeu", relancer_jeu),
-               ("📜 Consulter mes indices", afficher_dossier_indices)]
-    afficher_boutons(boutons)
-
-# --- Introduction ---
-def afficher_intro():
-    texte.set(enquete["debut"]["texte"])
-    boutons = []
-    for choix, destination in enquete["debut"]["choix"].items():
-        if "interroger_" in destination:
-            dest_command = lambda n=destination.replace("interroger_", ""): interroger_suspect(n)
-        else:
-            dest_command = lambda dest=destination: afficher_etape(dest)
-        boutons.append((choix, dest_command))
-    boutons.append(("📜 Consulter mes indices", afficher_dossier_indices))
-    afficher_boutons(boutons)
-
-# --- Recommencer le jeu ---
-def relancer_jeu():
-    logic.recommencer_jeu()
-    afficher_intro()
 
 # --- Lancement ---
 afficher_intro()
